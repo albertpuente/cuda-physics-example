@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# But not these files...
+!.gitignore
+!job.sh
+!physics.c
+!physics.cu
+!physicsViewer.c
+!Makefile
