@@ -124,7 +124,7 @@ float angleR = 3.141592 * -45/180;
 float alturaCam = 3; // inicial
 float viewportWidth, viewportHeight; // mida vigent
 float ra; // relacio d'aspecte vigent
-float pointScale = 20;
+float pointScale = 40;
 float scale = 0.6;
 float T = 1/FPS;
 int Fit;
@@ -181,21 +181,34 @@ void drawPoints() {
     glPopMatrix(); 
 }
 
-void drawAxis() {
+void drawBox() {
     glPushMatrix();
     glScalef(scale, scale, scale);
     glBegin(GL_LINES);
-    glColor3f(1.0, 0.0, 0.0);
-    glVertex3f(0.0, 0.0, 0.0);
-    glVertex3f(20.0, 0.0, 0.0);
+    glColor3f(1.0, 1.0,1.0);
+    glVertex3f(-10.0, 0.0, 10.0);
+    glVertex3f(10.0, 0.0, 10.0);
     
-    glColor3f(0.0, 1.0, 0.0);
-    glVertex3f(0.0, 0.0, 0.0);
-    glVertex3f(0.0, 20.0, 0.0);
+    glVertex3f(10.0, 0.0, 10.0);
+    glVertex3f(10.0, 0.0, -10.0);
     
-    glColor3f(0.0, 0.0, 1.0);
-    glVertex3f(0.0, 0.0, 0.0);
-    glVertex3f(0.0, 0.0, 20.0);
+    glVertex3f(10.0, 0.0, -10.0);
+    glVertex3f(-10.0, 0.0, -10.0);
+    
+    glVertex3f(-10.0, 0.0, -10.0);
+    glVertex3f(-10.0, 0.0, 10.0);
+    
+    glVertex3f(-10.0, 0.0, -10.0);
+    glVertex3f(-10.0, 20, -10.0);
+    
+    glVertex3f(10.0, 0.0, -10.0);
+    glVertex3f(10.0, 20, -10.0);
+    
+    glVertex3f(10.0, 0.0, 10.0);
+    glVertex3f(10.0, 20, 10.0);
+    
+    glVertex3f(-10.0, 0.0, 10.0);
+    glVertex3f(-10.0, 20, 10.0);
     glEnd();
     
     glPopMatrix(); 
@@ -244,7 +257,7 @@ void refresh() {
     drawPoints();
     glUseProgram(0);
     drawObstacles();
-    //drawAxis();
+    drawBox();
     glutSwapBuffers();
 }
 
@@ -366,8 +379,8 @@ void initGL() {
     glEnable(GL_SMOOTH);
     
     glEnable(GL_POINT_SMOOTH);
-    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-        
+    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);    
+    
     glGenBuffers(1, &Vid);    
     glBindBuffer(GL_ARRAY_BUFFER, Vid);    
     glBufferData(GL_ARRAY_BUFFER, 3*sizeof(float)*(itLimit+1)*nPoints, V, GL_STATIC_DRAW);

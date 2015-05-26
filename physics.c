@@ -26,13 +26,13 @@ Albert Puente Encinas
 #include <sys/time.h>
 
 // Algorithm parameters
-#define N 1024
-#define ITERATIONS 2000
+#define N 2048
+#define ITERATIONS 400
 #define G 9.81
-#define BOUNCE_DECAY 0.3
-#define GLOBAL_DECAY 0.001
-#define POINT_RADIUS 0.4
-#define TIME_SPEED 0.008
+#define BOUNCE_DECAY 0.4
+#define GLOBAL_DECAY 0.002
+#define POINT_RADIUS 0.2
+#define TIME_SPEED 0.012
 #define MAX_TRIES 1e4
 #define SEED 27
 
@@ -76,6 +76,12 @@ inline float dist(Point* a, Point* b) {
     return sqrt(pow(a->x - b->x, 2)+pow(a->y - b->y, 2)+pow(a->z - b->z, 2));
 }
 
+inline float distNext(Point* a, Point* b) {
+    return sqrt( pow(a->x + a->velocity.x*TIME_SPEED - (b->x + b->velocity.x*TIME_SPEED), 2)+
+                 pow(a->y + a->velocity.y*TIME_SPEED - (b->y + b->velocity.y*TIME_SPEED), 2)+
+                 pow(a->z + a->velocity.z*TIME_SPEED - (b->z + b->velocity.z*TIME_SPEED), 2));
+}
+
 bool collides(Point* p, PointSet* PS, int from, int to) {
     for (int i = from; i < to; ++i) {
         if (dist(p, &PS->points[i]) < POINT_RADIUS*2) {
@@ -111,6 +117,8 @@ void computeInteraction(PointSet* P, PointSet* Q, int i, int j) {
     float distance = dist(a, b);
     if (distance > 2*POINT_RADIUS + 0.05) return;
     
+    if (distance < distNext(a, b)) return;
+    
     // http://stackoverflow.com/questions/345838/ball-to-ball-collision-detection-and-handling
     
     // Get the components of the velocity vectors which are parallel to the collision.
@@ -118,7 +126,7 @@ void computeInteraction(PointSet* P, PointSet* Q, int i, int j) {
     Vector collision = diffVector(a, b);
     
     //
-    distance = 2*POINT_RADIUS;
+    //distance = 2*POINT_RADIUS;
     collision.x /= distance;
     collision.y /= distance;
     collision.z /= distance;
@@ -172,8 +180,25 @@ void computeInteractionWorld(PointSet* P) {
             p->velocity.y = abs(p->velocity.y) * (1.0 - BOUNCE_DECAY);
         }
         
-        if (WALLS) {
-            // TODO
+        if (WALLS) { // 4 walls x = -10, 10 and z = -10, 10
+            if (p->x < -10.0 + POINT_RADIUS) {
+                p->x = -10 + POINT_RADIUS;
+                p->velocity.x = abs(p->velocity.x) * (1.0 - BOUNCE_DECAY);
+            }
+            else if (p->x > 10.0 - POINT_RADIUS) {
+                p->x = 10 - POINT_RADIUS;
+                p->velocity.x = -abs(p->velocity.x) * (1.0 - BOUNCE_DECAY);
+            }            
+            
+            if (p->z < -10.0 + POINT_RADIUS) {
+                p->z = -10 + POINT_RADIUS;
+                p->velocity.z = abs(p->velocity.z) * (1.0 - BOUNCE_DECAY);
+            }            
+            else if (p->z > 10.0 - POINT_RADIUS) {
+                p->z = 10 - POINT_RADIUS;
+                p->velocity.z = -abs(p->velocity.z) * (1.0 - BOUNCE_DECAY);
+            }
+            
         }
     }
 }
