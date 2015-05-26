@@ -26,13 +26,13 @@ Albert Puente Encinas
 #include <sys/time.h>
 
 // Algorithm parameters
-#define N 2048
-#define ITERATIONS 400
+#define N 30
+#define ITERATIONS 1000
 #define G 9.81
 #define BOUNCE_DECAY 0.4
 #define GLOBAL_DECAY 0.002
 #define POINT_RADIUS 0.2
-#define TIME_SPEED 0.012
+#define TIME_SPEED 0.002
 #define MAX_TRIES 1e4
 #define SEED 27
 
@@ -45,6 +45,11 @@ typedef int bool;
 
 // Timers
 unsigned long long initialGenTime;
+unsigned long long interactionsTime;
+unsigned long long worldInteractionsTime;
+unsigned long long gravityTime;
+unsigned long long advanceTime;
+unsigned long long copyTime;
 unsigned long long frameTime;
 unsigned long long totalTime;
 
@@ -159,7 +164,7 @@ void applyGravity(PointSet* P) {
     }
 }
 
-void advanceTime(PointSet* P) {
+void advance(PointSet* P) {
     for (int i = 0; i < N; ++i) {
         Point* p = &P->points[i];
         p->x += p->velocity.x*TIME_SPEED;
@@ -213,19 +218,30 @@ void swap_ps(PointSet** P, PointSet** Q) {
 }
 
 void computePhysics(PointSet* P, PointSet* Q) {
+    tic(&gravityTime);
     applyGravity(Q); 
+    toc(&gravityTime);
+    
+    tic(&worldInteractionsTime);
     computeInteractionWorld(Q);
+    tic(&worldInteractionsTime);
+    
+    tic(&interactionsTime);
     for (int i = 0; i < N; ++i) {
         for (int j = i + 1; j < N; ++j) {
             computeInteraction(P, Q, i, j);
         }
     }
-    //applyGravity(Q);    
-    advanceTime(Q);
-    //swap_ps(&P, &Q);
-    //*Q = *P;
+    tic(&interactionsTime);
     
+    tic(&advanceTime);
+    advance(Q);
+    toc(&advanceTime);
+    
+    // Idea: swap of pointers and position copy while computeInteraction on "i"
+    tic(&copyTime); 
     *P = *Q;
+    toc(&copyTime);
 }
 
 void generateInitialConfiguration(PointSet* P) {
@@ -233,10 +249,11 @@ void generateInitialConfiguration(PointSet* P) {
         
     for (int i = 0; i < N; ++i) {
         Point* p = &P->points[i]; 
-        
-        p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+        p->x = 0;
+        p->z = 0;
+        //p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
         p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-        p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;       
+        //p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;       
         
         p->velocity.x = 0.0;
         p->velocity.y = -3.5;
@@ -244,9 +261,11 @@ void generateInitialConfiguration(PointSet* P) {
                 
         int tests = 0;
         while (tests < MAX_TRIES && collides(p, P, 0, i)) {
-            p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+            p->x = 0;
+        p->z = 0;
+            //p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
             p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-            p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+            //p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
             ++tests;
         }
         if (tests == MAX_TRIES) {
@@ -269,13 +288,25 @@ void dump(PointSet* P) {
 }
 
 void initTimes() {
-    initialGenTime = frameTime = totalTime = 0.0;
+    initialGenTime = 0;
+    interactionsTime = 0;
+    worldInteractionsTime = 0;
+    gravityTime = 0;
+    advanceTime = 0;
+    copyTime = 0;
+    frameTime = 0;
+    totalTime = 0;
 }
 
 void printTimes() {
     printf("Sequential physics algorithm has finished:\n");
     printf("    Init gen:     %f s.\n", (double)initialGenTime/1000000);
-    printf("    Avg. frame    %f s.\n", (double)frameTime/(ITERATIONS*1000000));
+    printf("    Interactions: %f s.\n", (double)interactionsTime/1000000);
+    printf("    World int.:   %f s.\n", (double)worldInteractionsTime/1000000);
+    printf("    Gravity:      %f s.\n", (double)gravityTime/1000000);
+    printf("    Advance:      %f s.\n", (double)advanceTime/1000000);
+    printf("    Copy:         %f s.\n", (double)copyTime/1000000);
+    printf("    Avg. frame:   %f s.\n", (double)frameTime/(ITERATIONS*1000000));
     printf("    Total time:   %f s.\n", (double)totalTime/1000000);
 }
 
