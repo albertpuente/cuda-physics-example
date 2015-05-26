@@ -32,7 +32,7 @@ Albert Puente Encinas
 #define BOUNCE_DECAY 0.4
 #define GLOBAL_DECAY 0.002
 #define POINT_RADIUS 0.2
-#define TIME_SPEED 0.002
+#define TIME_SPEED 0.004
 #define MAX_TRIES 1e4
 #define SEED 27
 
