@@ -124,7 +124,7 @@ float angleR = 3.141592 * -45/180;
 float alturaCam = 3; // inicial
 float viewportWidth, viewportHeight; // mida vigent
 float ra; // relacio d'aspecte vigent
-float pointScale = 40;
+float pointScale = 15;
 float scale = 0.6;
 float T = 1/FPS;
 int Fit;

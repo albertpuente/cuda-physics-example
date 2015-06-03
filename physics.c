@@ -26,13 +26,13 @@ Albert Puente Encinas
 #include <sys/time.h>
 
 // Algorithm parameters
-#define N 30
+#define N 512
 #define ITERATIONS 1000
 #define G 9.81
 #define BOUNCE_DECAY 0.4
 #define GLOBAL_DECAY 0.002
-#define POINT_RADIUS 0.2
-#define TIME_SPEED 0.004
+#define POINT_RADIUS 0.1
+#define TIME_SPEED 0.008
 #define MAX_TRIES 1e4
 #define SEED 27
 
@@ -249,11 +249,10 @@ void generateInitialConfiguration(PointSet* P) {
         
     for (int i = 0; i < N; ++i) {
         Point* p = &P->points[i]; 
-        p->x = 0;
-        p->z = 0;
-        //p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+
+        p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
         p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-        //p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;       
+        p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;       
         
         p->velocity.x = 0.0;
         p->velocity.y = -3.5;
@@ -261,11 +260,10 @@ void generateInitialConfiguration(PointSet* P) {
                 
         int tests = 0;
         while (tests < MAX_TRIES && collides(p, P, 0, i)) {
-            p->x = 0;
-        p->z = 0;
-            //p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+
+            p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
             p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-            //p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+            p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
             ++tests;
         }
         if (tests == MAX_TRIES) {
