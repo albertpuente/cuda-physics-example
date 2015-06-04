@@ -27,7 +27,7 @@ berry:	cuda
 	./physicsCUDA 1
 	
 clean:
-	rm -f *.o physics physicsCUDA SESION* physicsViewer 
+	rm -f *.o physics physicsCUDA PHYSICS* physicsViewer 
 	
 cuda.o: physics.cu
 	$(NVCC) -c -o $@ physics.cu $(NVCC_FLAGS)

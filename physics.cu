@@ -27,22 +27,24 @@ Albert Puente Encinas
 #include <cuda.h>
 
 // Algorithm parameters
-#define N 1024*1
-#define ITERATIONS 1000
+#define N 1024*32
+#define ITERATIONS 10000
 #define G 9.81
 #define BOUNCE_DECAY 0.4
 #define GLOBAL_DECAY 0.002
-#define POINT_RADIUS 0.1
-#define TIME_SPEED 0.008
+#define POINT_RADIUS 0.0005
+#define TIME_SPEED 0.0001
 #define MAX_TRIES 1e4
 #define SEED 27
+
+#define DUMP_RATIO 100
 
 // CUDA Variables
 unsigned int nThreads = 1024;
 unsigned int nBlocks = N/nThreads;  // N multiple de nThreads
 
 // c++ style
-typedef int bool;
+#define bool int
 #define true 1
 #define false 0
 
@@ -81,6 +83,15 @@ typedef struct {
     Point points[N];
 } PointSet;
 
+void checkCudaError(char msg[]) {
+    cudaError_t error;
+    error = cudaGetLastError();
+    if (error) {
+        printf("Error: %s: %s\n", msg, cudaGetErrorString(error));
+        exit(1);
+    }
+}
+
 inline float dist(Point* a, Point* b) {
     return sqrt(pow(a->x - b->x, 2)+pow(a->y - b->y, 2)+pow(a->z - b->z, 2));
 }
@@ -89,7 +100,7 @@ __device__ inline float gpu_dist(Point* a, Point* b) {
     return sqrt(pow(a->x - b->x, 2)+pow(a->y - b->y, 2)+pow(a->z - b->z, 2));
 }
 
-inline float distNext(Point* a, Point* b) {
+__device__ inline float distNext(Point* a, Point* b) {
     return sqrt( pow(a->x + a->velocity.x*TIME_SPEED - (b->x + b->velocity.x*TIME_SPEED), 2)+
                  pow(a->y + a->velocity.y*TIME_SPEED - (b->y + b->velocity.y*TIME_SPEED), 2)+
                  pow(a->z + a->velocity.z*TIME_SPEED - (b->z + b->velocity.z*TIME_SPEED), 2));
@@ -104,9 +115,9 @@ bool collides(Point* p, PointSet* PS, int from, int to) {
     return false;
 }
 
-Vector diffVector(Point* a, Point* b) {
+__device__ Vector diffVector(Point* a, Point* b) {
     Vector v;
-    float e = 1e-50;
+    float e = 1e-40;
     v.x = a->x - b->x;
     if (abs(v.x) < e) v.x = 0;
     v.y = a->y - b->y;
@@ -116,19 +127,14 @@ Vector diffVector(Point* a, Point* b) {
     return v;
 }
 
-__device_ inline float dotProduct(Vector a, Vector b) {
+__device__ inline float dotProduct(Vector a, Vector b) {
     return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 
-void computeInteraction(PointSet* gpu_P, PointSet* gpu_Q) {
-    kernel_interaction<<<nBlocks, nThreads>>>(gpu_P);
-    checkCudaError((char *) "kernel call in interaction");    
-    cudaDeviceSynchronize();
-}
 
 __global__ void kernel_interaction(PointSet* P, PointSet* Q) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    for (int j = id + 1; j < N; ++j) {
+    for (int j = i + 1; j < N; ++j) {
         if (i == j) return;
         
         Point* a = &P->points[i];
@@ -172,9 +178,15 @@ __global__ void kernel_interaction(PointSet* P, PointSet* Q) {
     }
 }
 
-__glboal__ void kernel_gravity(PointSet* P) {
+void computeInteraction(PointSet* gpu_P, PointSet* gpu_Q) {
+    kernel_interaction<<<nBlocks, nThreads>>>(gpu_P, gpu_Q);
+    checkCudaError((char *) "kernel call in interaction");    
+    cudaDeviceSynchronize();
+}
+
+__global__ void kernel_gravity(PointSet* P) {
     int id = blockIdx.x * blockDim.x + threadIdx.x;
-    P->points[i].velocity.y -= G*TIME_SPEED;    
+    P->points[id].velocity.y -= G*TIME_SPEED;    
 }
 
 void applyGravity(PointSet* gpu_P) {
@@ -196,8 +208,8 @@ __global__ void kernel_advance(PointSet* P, PointSet* Q) {
     Q->points[id] = *p;
 }
 
-void advanceAndCopy(PointSet* gpu_P, PointSet* Q) {
-    kernel_world<<<nBlocks, nThreads>>>(gpu_P, gpu_Q);
+void advanceAndCopy(PointSet* gpu_P, PointSet* gpu_Q) {
+    kernel_advance<<<nBlocks, nThreads>>>(gpu_P, gpu_Q);
     checkCudaError((char *) "kernel call in advance");    
     cudaDeviceSynchronize();
 }
@@ -206,7 +218,7 @@ __device__ inline void ifelse(bool condition, float* dest, float a, float b) {
     *dest = condition*a + !condition*b;    
 }
 
-__glboal__ void kernel_world(PointSet* P) {
+__global__ void kernel_world(PointSet* P) {
     int id = blockIdx.x * blockDim.x + threadIdx.x;
     
     Point* p = &P->points[id];
@@ -264,7 +276,7 @@ void computePhysics(PointSet* gpu_P, PointSet* gpu_Q) {
 
 void generateInitialConfiguration(PointSet* gpu_P, PointSet* gpu_Q) {
     tic(&initialGenTime);
-    PointSet* P = malloc(sizeof(PointSet));
+    PointSet* P = (PointSet*) malloc(sizeof(PointSet));
     
     for (int i = 0; i < N; ++i) {
         Point* p = &P->points[i]; 
@@ -311,7 +323,7 @@ __global__ void kernel_print(PointSet* P) {
      printf("%f %f %f\n", P->points[id].x, P->points[id].y, P->points[id].z);
 }
 
-void dump(PointSet* P) {
+void dump(PointSet* gpu_P) {
     kernel_print<<<nBlocks, nThreads>>>(gpu_P);
     checkCudaError((char *) "kernel call in interaction");    
     cudaDeviceSynchronize();
@@ -334,34 +346,36 @@ void printTimes() {
     printf("    World int.:   %f s.\n", (double)worldInteractionsTime/1000000);
     printf("    Gravity:      %f s.\n", (double)gravityTime/1000000);
     printf("    Advance:      %f s.\n", (double)advanceTime/1000000);
-    printf("    Avg. frame:   %f s.\n", (double)frameTime/(ITERATIONS*1000000));
+    // printf("    Avg. frame:   %f s.\n", (double)frameTime/(ITERATIONS*1000000));
     printf("    Total time:   %f s.\n", (double)totalTime/1000000);
 }
 
 void sequentialPhysics() {
-    tic(&totalTime);   
     
-    DUMPInitialParams();
-    
-    Population* gpu_P;
-    Population* gpu_Q;
+    DUMPInitialParams();  
+        
+    PointSet* gpu_P;
+    PointSet* gpu_Q;
     cudaMalloc((void **) &gpu_P, sizeof(PointSet));
     checkCudaError((char *) "cudaMalloc of P");
     cudaMalloc((void **) &gpu_Q, sizeof(PointSet));
     checkCudaError((char *) "cudaMalloc of Q");
     
+    tic(&totalTime);
     srand(SEED);
-    generateInitialConfiguration(gpu_P gpu_Q); // *CPU_P = *gpu_P = *gpu_Q
+    generateInitialConfiguration(gpu_P, gpu_Q); // *CPU_P = *gpu_P = *gpu_Q
+    
+    
     for (int i = 0; i < ITERATIONS; ++i) {
         tic(&frameTime);        
         computePhysics(gpu_P, gpu_Q);      
-        if (DUMP) dump(gpu_P);
+        if (DUMP && i%DUMP_RATIO == 0) dump(gpu_P);
         else printf("IT %i\n", i);
         
         toc(&frameTime);    
     }
-    toc(&totalTime);
     
+    toc(&totalTime);
     if (!DUMP) printTimes();   
 }
 

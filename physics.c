@@ -26,15 +26,17 @@ Albert Puente Encinas
 #include <sys/time.h>
 
 // Algorithm parameters
-#define N 512
-#define ITERATIONS 1000
+#define N 1024*32
+#define ITERATIONS 10000
 #define G 9.81
 #define BOUNCE_DECAY 0.4
 #define GLOBAL_DECAY 0.002
-#define POINT_RADIUS 0.1
-#define TIME_SPEED 0.008
+#define POINT_RADIUS 0.0005
+#define TIME_SPEED 0.0001
 #define MAX_TRIES 1e4
 #define SEED 27
+
+#define DUMP_RATIO 10
 
 // c++ style
 typedef int bool;
@@ -248,6 +250,7 @@ void generateInitialConfiguration(PointSet* P) {
     tic(&initialGenTime);
         
     for (int i = 0; i < N; ++i) {
+        
         Point* p = &P->points[i]; 
 
         p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
@@ -270,6 +273,8 @@ void generateInitialConfiguration(PointSet* P) {
             printf("Error during the generation of the initial conf.\n");
             exit(1);
         }
+        if (i%1000 == 0)
+            printf("Point %i initialized.\n",i);
     }
     
     toc(&initialGenTime);
@@ -322,7 +327,7 @@ void sequentialPhysics() {
     for (int i = 0; i < ITERATIONS; ++i) {
         tic(&frameTime);        
         computePhysics(P, Q);      
-        if (DUMP) dump(P);
+        if (DUMP && i%DUMP_RATIO == 0) dump(P);
         else printf("IT %i\n", i);
         
         toc(&frameTime);    
