@@ -255,7 +255,7 @@ void generateInitialConfiguration(PointSet* P) {
         Point* p = &P->points[i]; 
 
         p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
-        p->y = 100.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+        p->y = 20.0*(float)rand()/(float)(RAND_MAX) + 1.0;
         p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
         
         p->velocity.x = 0.0;
@@ -265,9 +265,9 @@ void generateInitialConfiguration(PointSet* P) {
         int tests = 0;
         while (tests < MAX_TRIES && collides(p, P, 0, i)) {
 
-            p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
-            p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-            p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+            p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
+            p->y = 20.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+            p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
             ++tests;
         }
         if (tests == MAX_TRIES) {

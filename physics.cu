@@ -117,7 +117,7 @@ bool collides(Point* p, PointSet* PS, int from, int to) {
 
 __device__ Vector diffVector(Point* a, Point* b) {
     Vector v;
-    float e = 1e-40;
+    float e = 1e-20;
     v.x = a->x - b->x;
     if (abs(v.x) < e) v.x = 0;
     v.y = a->y - b->y;
@@ -224,12 +224,11 @@ __global__ void kernel_world(PointSet* P) {
     int id = blockIdx.x * blockDim.x + threadIdx.x;
     
     Point* p = &P->points[id];
+    if (p->y < POINT_RADIUS) {
+        p->y = POINT_RADIUS;
+        p->velocity.y = abs(p->velocity.y) * (1.0 - BOUNCE_DECAY);
+    }
     
-    ifelse(p->y < POINT_RADIUS, &p->y, p->y, POINT_RADIUS);
-    
-    ifelse(p->y < POINT_RADIUS, &p->velocity.y, 
-           p->velocity.y, abs(p->velocity.y)*(1.0 - BOUNCE_DECAY));
-
     if (WALLS) { // 4 walls x = -10, 10 and z = -10, 10
         if (p->x < -10.0 + POINT_RADIUS) {
             p->x = -10 + POINT_RADIUS;
@@ -247,8 +246,9 @@ __global__ void kernel_world(PointSet* P) {
         else if (p->z > 10.0 - POINT_RADIUS) {
             p->z = 10 - POINT_RADIUS;
             p->velocity.z = -abs(p->velocity.z) * (1.0 - BOUNCE_DECAY);
-        }        
-    } 
+        }
+        
+    }
 }
 
 void computeInteractionWorld(PointSet* gpu_P) {
@@ -281,11 +281,12 @@ void generateInitialConfiguration(PointSet* gpu_P, PointSet* gpu_Q) {
     PointSet* P = (PointSet*) malloc(sizeof(PointSet));
     
     for (int i = 0; i < N; ++i) {
+        
         Point* p = &P->points[i]; 
 
-        p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
-        p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-        p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;       
+        p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
+        p->y = 20.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+        p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
         
         p->velocity.x = 0.0;
         p->velocity.y = -3.5;
@@ -294,9 +295,9 @@ void generateInitialConfiguration(PointSet* gpu_P, PointSet* gpu_Q) {
         int tests = 0;
         while (tests < MAX_TRIES && collides(p, P, 0, i)) {
 
-            p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
-            p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-            p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
+            p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
+            p->y = 20.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+            p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
             ++tests;
         }
         if (tests == MAX_TRIES) {
@@ -369,10 +370,10 @@ void sequentialPhysics() {
     
     
     for (int i = 0; i < ITERATIONS; ++i) {
-        tic(&frameTime);        
+        tic(&frameTime);
         computePhysics(gpu_P, gpu_Q);      
         if (DUMP) {
-            if (i%DUMP_RATIO == 0) dump(P);
+            if (i%DUMP_RATIO == 0) dump(gpu_P);
         }
         else printf("IT %i\n", i);
         
