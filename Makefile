@@ -17,8 +17,13 @@ physics: physics.c
 physicsViewer: physicsViewer.c
 	gcc physicsViewer.c -o physicsViewer $(CFLAGS) $(GFLAGS) 
 	
+debug:
+	gcc -ggdb physicsViewer.c -o physicsViewer $(CFLAGS) $(GFLAGS)
+	gdb physicsViewer
+	
 show:	physics physicsViewer
-	./physics > data && ./physicsViewer data
+	./physics > data 
+	./physicsViewer data
 
 exec:	physics
 	./physics 1

@@ -26,17 +26,17 @@ Albert Puente Encinas
 #include <sys/time.h>
 
 // Algorithm parameters
-#define N 1024*32
-#define ITERATIONS 10000
+#define N 256*4
+#define ITERATIONS 2000
 #define G 9.81
-#define BOUNCE_DECAY 0.4
-#define GLOBAL_DECAY 0.002
-#define POINT_RADIUS 0.0005
-#define TIME_SPEED 0.0001
+#define BOUNCE_DECAY 0.5
+#define GLOBAL_DECAY 0.004
+#define POINT_RADIUS 0.3
+#define TIME_SPEED 0.0075
 #define MAX_TRIES 1e4
 #define SEED 27
 
-#define DUMP_RATIO 10
+#define DUMP_RATIO 4
 
 // c++ style
 typedef int bool;
@@ -122,11 +122,12 @@ void computeInteraction(PointSet* P, PointSet* Q, int i, int j) {
     Point* b = &P->points[j];
     
     float distance = dist(a, b);
+    
     if (distance > 2*POINT_RADIUS + 0.05) return;
     
-    if (distance < distNext(a, b)) return;
+    if (distance == 0) return; // AVOID NAN, PROVISIONAL
     
-    // http://stackoverflow.com/questions/345838/ball-to-ball-collision-detection-and-handling
+    if (distance < distNext(a, b)) return;
     
     // Get the components of the velocity vectors which are parallel to the collision.
     // The perpendicular component remains the same for both fish
@@ -253,9 +254,9 @@ void generateInitialConfiguration(PointSet* P) {
         
         Point* p = &P->points[i]; 
 
-        p->x = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;
-        p->y = 30.0*(float)rand()/(float)(RAND_MAX) + 1.0;
-        p->z = 10.0*(float)rand()/(float)(RAND_MAX) - 5.0;       
+        p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
+        p->y = 100.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+        p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
         
         p->velocity.x = 0.0;
         p->velocity.y = -3.5;
@@ -273,15 +274,13 @@ void generateInitialConfiguration(PointSet* P) {
             printf("Error during the generation of the initial conf.\n");
             exit(1);
         }
-        if (i%1000 == 0)
-            printf("Point %i initialized.\n",i);
     }
     
     toc(&initialGenTime);
 }
 
 void DUMPInitialParams() {
-    printf("%i %i\n", N, ITERATIONS);
+    printf("%i %i %f\n", N, ITERATIONS/DUMP_RATIO, POINT_RADIUS);
 }
 
 void dump(PointSet* P) {
@@ -327,7 +326,9 @@ void sequentialPhysics() {
     for (int i = 0; i < ITERATIONS; ++i) {
         tic(&frameTime);        
         computePhysics(P, Q);      
-        if (DUMP && i%DUMP_RATIO == 0) dump(P);
+        if (DUMP) {
+            if (i%DUMP_RATIO == 0) dump(P);
+        }
         else printf("IT %i\n", i);
         
         toc(&frameTime);    

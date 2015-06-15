@@ -27,17 +27,17 @@ Albert Puente Encinas
 #include <cuda.h>
 
 // Algorithm parameters
-#define N 1024*32
-#define ITERATIONS 10000
+#define N 256*4
+#define ITERATIONS 2000
 #define G 9.81
-#define BOUNCE_DECAY 0.4
-#define GLOBAL_DECAY 0.002
-#define POINT_RADIUS 0.0005
-#define TIME_SPEED 0.0001
+#define BOUNCE_DECAY 0.5
+#define GLOBAL_DECAY 0.004
+#define POINT_RADIUS 0.3
+#define TIME_SPEED 0.0075
 #define MAX_TRIES 1e4
 #define SEED 27
 
-#define DUMP_RATIO 100
+#define DUMP_RATIO 4
 
 // CUDA Variables
 unsigned int nThreads = 1024;
@@ -142,6 +142,8 @@ __global__ void kernel_interaction(PointSet* P, PointSet* Q) {
         
         float distance = gpu_dist(a, b);
         if (distance > 2*POINT_RADIUS + 0.05) return;
+        
+        if (distance == 0) return; // AVOID NAN, PROVISIONAL
         
         if (distance < distNext(a, b)) return;
         
@@ -369,7 +371,9 @@ void sequentialPhysics() {
     for (int i = 0; i < ITERATIONS; ++i) {
         tic(&frameTime);        
         computePhysics(gpu_P, gpu_Q);      
-        if (DUMP && i%DUMP_RATIO == 0) dump(gpu_P);
+        if (DUMP) {
+            if (i%DUMP_RATIO == 0) dump(P);
+        }
         else printf("IT %i\n", i);
         
         toc(&frameTime);    

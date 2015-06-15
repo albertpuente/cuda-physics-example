@@ -17,7 +17,7 @@ Usage:
     ./physicsViewer dump.txt
 
 Jan Mas Rovira
-Andrés Mingorance López
+Andres Mingorance Lopez
 Albert Puente Encinas
   
 */
@@ -31,14 +31,7 @@ Albert Puente Encinas
 // Physics algorithm parameters
 int nPoints;
 int itLimit;
-int nObstacles;
-
-typedef struct {
-    float x, y, z;
-    float radius;
-} Obstacle;
-
-Obstacle* obstacles; 
+float pointRadius;
 
 #define FPS 60.0;   // Viewer maximum framerate
 
@@ -49,19 +42,7 @@ typedef int bool;
 
 // OpenGL points array and VBO pointer
 float* V;
-int Vid;
-
-// Colours
-#define factor 0.3
-float colours[] = { 
-    1, factor, factor,
-    factor, 1, factor,
-    factor, factor, 1,
-    1, 1, factor,
-    1, factor, 1,
-    factor, 1, 1,
-    1, 1, 1};
-                
+int Vid, Cid;
 
 // OpenGL shader program
 GLuint sProgram;
@@ -75,6 +56,10 @@ void loadShaders() {
         void main() {\
             pos = gl_Vertex.xyz;\
             gl_Position = gl_ModelViewProjectionMatrix*gl_Vertex;\
+            vec3 ndc = gl_Position.xyz/gl_Position.w;\
+            float zDist = 1.0-ndc.z;\
+            float size = zDist*10000.0;\
+            gl_PointSize = size;\
         }";
         
     glShaderSource(vsh, 1, &vshcode, NULL);
@@ -84,18 +69,13 @@ void loadShaders() {
     printf("Compile vertex shader: %i\n", success);
    
     GLuint fsh = glCreateShader(GL_FRAGMENT_SHADER);
-    
-    /*
-     * -20<= pos[i] <=20 
-     * 0 <=r,g, b <= 1.0  
-     * 
-     */
+
     char* fshcode = "\
         varying vec3 pos;\
         void main() {\
-            float r = (pos[0]+10.0)/20.0; \
-            float g = pos[1]/11.0; \
-            float b = (pos[2]+10.0)/20.0; \
+            float r = 1.0 - abs(pos[0]/10.0); \
+            float g = 1.0 - abs(pos[1]/10.0); \
+            float b = 1.0 - abs(pos[2]/10.0); \
             gl_FragColor = vec4(r,g,b,1.0);\
         }";
         
@@ -124,10 +104,14 @@ float angleR = 3.141592 * -45/180;
 float alturaCam = 3; // inicial
 float viewportWidth, viewportHeight; // mida vigent
 float ra; // relacio d'aspecte vigent
-float pointScale = 15;
 float scale = 0.6;
 float T = 1/FPS;
 int Fit;
+
+inline void DD(char* debug_msg) {
+    printf(debug_msg);
+    printf("\n");
+}
 
 void drawText() {  
     glMatrixMode(GL_PROJECTION);
@@ -164,21 +148,24 @@ void drawText() {
 }
 
 void drawPoints() {
-    glPointSize(pointScale*scale);
+
+    GLint uLocation = glGetUniformLocation(sProgram, "pointRadius");
+    glUniform1f(uLocation, pointRadius);
+
     glPushMatrix();
     glColor3f(1, 1, 1);
     glScalef(scale, scale, scale); 
-    
+
     glBindBuffer(GL_ARRAY_BUFFER, Vid);         
     glVertexPointer(3, GL_FLOAT, 0, 0);
     glEnableClientState(GL_VERTEX_ARRAY);
-    
+
     glDrawArrays(GL_POINTS, Fit*nPoints, nPoints); 
-    
-    glDisableClientState(GL_VERTEX_ARRAY);    
+
+    glDisableClientState(GL_VERTEX_ARRAY); 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    
-    glPopMatrix(); 
+
+    glPopMatrix();
 }
 
 void drawBox() {
@@ -214,49 +201,13 @@ void drawBox() {
     glPopMatrix(); 
 }
 
-void drawObstacles() {
-    glEnable(GL_LIGHTING);
-    
-    glPushMatrix();
-    glScalef(scale, scale, scale);
-    
-    int nColours = sizeof(colours)/sizeof(float);
-    
-    float lightPos[4] = {20, 20, 20, 1};
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
-    
-    for (int i = 0; i < nObstacles; ++i) {
-        
-        float r = colours[(3*i)%nColours];
-        float g = colours[(3*i+1)%nColours];
-        float b = colours[(3*i+2)%nColours];
-        
-        float v1[3] = {r*0.8, g*0.8, b*0.8};
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, v1);
-        float v2[3] = {r, g, b};
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, v2);
-        float v3[3] = {r*0.7, g*0.7, b*0.7};
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, v3);
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 5);
-        
-        
-        glPushMatrix();
-        Obstacle* o = &obstacles[i];
-        glTranslatef(o->x, o->y, o->z);
-        glutSolidSphere(o->radius, 100, 100);
-        glPopMatrix();
-    }
-    glPopMatrix();
-    glDisable(GL_LIGHTING);
-}
-
 void refresh() {
+    
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     drawText();
     glUseProgram(sProgram);
     drawPoints();
     glUseProgram(0);
-    drawObstacles();
     drawBox();
     glutSwapBuffers();
 }
@@ -272,8 +223,8 @@ void moveCamera() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     gluLookAt(0+10*sin(angleR), 10 + alturaCam, 10*cos(angleR),
-                0, 1, 0,
-                0, 1, 0);
+                0, 2, 0,
+                0, 2, 0);
     changeCameraPerspective();
     glutPostRedisplay();
 }
@@ -301,13 +252,6 @@ void keyPressed(unsigned char character, int posX, int posY) {
     }
     else if (character == ' ') {
         play = !play;
-    }
-    else if (character == '-') {
-        pointScale -= 1;
-        if (pointScale < 1) pointScale = 0;
-    }
-    else if (character == '+') {
-        pointScale += 1;
     }
     else if (character == 'q') {
         scale -= 0.01;
@@ -373,17 +317,16 @@ void initGL() {
     glLightfv(GL_LIGHT0, GL_AMBIENT, v02);
     float v03[3] = { 1, 1, 1};
     glLightfv(GL_LIGHT0, GL_SPECULAR, v03);
-    glEnable(GL_LIGHT0);
-    
-    glEnable(GL_NORMALIZE); 
-    glEnable(GL_SMOOTH);
+    glEnable(GL_LIGHT0);        
     
     glEnable(GL_POINT_SMOOTH);
     glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);    
-    
+  
     glGenBuffers(1, &Vid);    
     glBindBuffer(GL_ARRAY_BUFFER, Vid);    
     glBufferData(GL_ARRAY_BUFFER, 3*sizeof(float)*(itLimit+1)*nPoints, V, GL_STATIC_DRAW);
+    
+    glEnable(GL_PROGRAM_POINT_SIZE);
     
     loadShaders();
 } 
@@ -393,8 +336,9 @@ void open3DWindow(int argc, char** argv) {
     initGLUT();
     initGL();
     initCamera();
+    
     Fit = 0;
-    printf("Camera: w,a,s,d   Zoom: q, e\nStop: SPACE   Reset: r   Point size: +,-\n");
+    printf("Camera: w,a,s,d   Zoom: q, e\nStop: SPACE   Reset: r \n");
     glutTimerFunc(T*1000, nextFrame, 0);
     glutMainLoop();
 }
@@ -406,6 +350,9 @@ int readFile(char* name) {
 
     fscanf(file, "%i", &itLimit);
     
+    fscanf(file, "%f", &pointRadius);
+    pointRadius *= 20000;
+    printf("%f\n", pointRadius);
     V = malloc(3*sizeof(float)*(itLimit+1)*nPoints);
     
     for (int i = 0; i < nPoints*(itLimit + 1); i++) {
