@@ -27,7 +27,7 @@ Albert Puente Encinas
 #include <cuda.h>
 
 // Algorithm parameters
-#define N 256*4
+#define N 256*16 // Si incrementa FALLA (+110 MB)!
 #define ITERATIONS 2000
 #define G 9.81
 #define BOUNCE_DECAY 0.5
@@ -37,11 +37,11 @@ Albert Puente Encinas
 #define MAX_TRIES 1e4
 #define SEED 27
 
-#define DUMP_RATIO 4
+#define DUMP_RATIO 2
 
 // CUDA Variables
-unsigned int nThreads = 1024;
-unsigned int nBlocks = N/nThreads;  // N multiple de nThreads
+#define nThreads 1024
+#define nBlocks N/nThreads
 
 // c++ style
 #define bool int
@@ -117,13 +117,9 @@ bool collides(Point* p, PointSet* PS, int from, int to) {
 
 __device__ Vector diffVector(Point* a, Point* b) {
     Vector v;
-    float e = 1e-20;
     v.x = a->x - b->x;
-    if (abs(v.x) < e) v.x = 0;
     v.y = a->y - b->y;
-    if (abs(v.y) < e) v.y = 0;
     v.z = a->z - b->z;
-    if (abs(v.z) < e) v.z = 0;
     return v;
 }
 
@@ -133,55 +129,64 @@ __device__ inline float dotProduct(Vector a, Vector b) {
 
 
 __global__ void kernel_interaction(PointSet* P, PointSet* Q) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    for (int j = i + 1; j < N; ++j) {
-        if (i == j) return;
-        
-        Point* a = &P->points[i];
-        Point* b = &P->points[j];
-        
-        float distance = gpu_dist(a, b);
-        if (distance > 2*POINT_RADIUS + 0.05) return;
-        
-        if (distance == 0) return; // AVOID NAN, PROVISIONAL
-        
-        if (distance < distNext(a, b)) return;
-        
-        // http://stackoverflow.com/questions/345838/ball-to-ball-collision-detection-and-handling
-        
-        // Get the components of the velocity vectors which are parallel to the collision.
-        // The perpendicular component remains the same for both fish
-        Vector collision = diffVector(a, b);
-        
-        //
-        //distance = 2*POINT_RADIUS;
-        collision.x /= distance;
-        collision.y /= distance;
-        collision.z /= distance;
-        
-        float aci = dotProduct(collision, a->velocity); 
-        float bci = dotProduct(collision, b->velocity); 
+    int index = blockIdx.x * blockDim.x + threadIdx.x;    
+    
+    int j = 1 + floor(-0.5 + sqrt(0.25 + 2 * index));
+    int triangularNumber = j * (j - 1) / 2;
+    int i = index - triangularNumber;
+    
+    Point* a = &P->points[i];
+    Point* b = &P->points[j];
 
-        // Solve for the new velocities using the 1-dimensional elastic collision equations.
-        // Turns out it's really simple when the masses are the same.
-        float acf = bci;
-        float bcf = aci;
+    float distance = gpu_dist(a, b);
+    
+    if (distance > 2*POINT_RADIUS + 0.05) return;
+    
+    if (distance == 0) return; // AVOID NAN, PROVISIONAL
+    
+    if (distance < distNext(a, b)) return;
+    
+    Point* aq = &Q->points[i];
+    Point* bq = &Q->points[j];
+    
+    // Get the components of the velocity vectors which are parallel to the collision.
+    // The perpendicular component remains the same for both fish
+    Vector collision = diffVector(a, b);
+    
+    //
+    //distance = 2*POINT_RADIUS;
+    collision.x /= distance;
+    collision.y /= distance;
+    collision.z /= distance;
+    
+    float aci = dotProduct(collision, a->velocity); 
+    float bci = dotProduct(collision, b->velocity); 
 
-        // Replace the collision velocity components with the new ones
-        Point* aq = &Q->points[i];
-        Point* bq = &Q->points[j];
-        aq->velocity.x += (acf - aci) * collision.x;
-        aq->velocity.y += (acf - aci) * collision.y;
-        aq->velocity.z += (acf - aci) * collision.z;
+    // Replace the collision velocity components with the new ones
+
+    atomicAdd(&aq->velocity.x, (bci - aci) * collision.x);
+    atomicAdd(&aq->velocity.y, (bci - aci) * collision.y);
+    atomicAdd(&aq->velocity.z, (bci - aci) * collision.z);
         
-        bq->velocity.x += (bcf - bci) * collision.x;
-        bq->velocity.y += (bcf - bci) * collision.y;
-        bq->velocity.z += (bcf - bci) * collision.z;
-    }
+    atomicAdd(&bq->velocity.x, (aci - bci) * collision.x);
+    atomicAdd(&bq->velocity.y, (aci - bci) * collision.y);
+    atomicAdd(&bq->velocity.z, (aci - bci) * collision.z);
 }
 
-void computeInteraction(PointSet* gpu_P, PointSet* gpu_Q) {
-    kernel_interaction<<<nBlocks, nThreads>>>(gpu_P, gpu_Q);
+void computeInteraction(PointSet* gpu_P, PointSet* gpu_Q) {   
+    /*
+     * (n*(n-1))/2 elements
+     * because we are emulating the following loop
+     * 
+     * for (int i = 0; i < N; ++i)
+     *     for (int j = i + 1; j < N; ++j)
+     *         kernel_interaction(i, j);
+     */
+    // nThreads is 1024
+    
+    int nElem = (N*(N-1))/2;
+    int nElemBlocks = nElem/nThreads;
+    kernel_interaction<<<nElemBlocks, nThreads>>>(gpu_P, gpu_Q);
     checkCudaError((char *) "kernel call in interaction");    
     cudaDeviceSynchronize();
 }
@@ -285,7 +290,7 @@ void generateInitialConfiguration(PointSet* gpu_P, PointSet* gpu_Q) {
         Point* p = &P->points[i]; 
 
         p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
-        p->y = 20.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+        p->y = 80.0*(float)rand()/(float)(RAND_MAX) + 1.0;
         p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
         
         p->velocity.x = 0.0;
@@ -296,7 +301,7 @@ void generateInitialConfiguration(PointSet* gpu_P, PointSet* gpu_Q) {
         while (tests < MAX_TRIES && collides(p, P, 0, i)) {
 
             p->x = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;
-            p->y = 20.0*(float)rand()/(float)(RAND_MAX) + 1.0;
+            p->y = 80.0*(float)rand()/(float)(RAND_MAX) + 1.0;
             p->z = 12.0*(float)rand()/(float)(RAND_MAX) - 6.0;       
             ++tests;
         }
@@ -318,7 +323,7 @@ void generateInitialConfiguration(PointSet* gpu_P, PointSet* gpu_Q) {
 }
 
 void DUMPInitialParams() {
-    printf("%i %i\n", N, ITERATIONS);
+    printf("%i %i %f\n", N, ITERATIONS/DUMP_RATIO, POINT_RADIUS);
 }
 
 __global__ void kernel_print(PointSet* P) {
@@ -343,7 +348,7 @@ void initTimes() {
 }
 
 void printTimes() {
-    printf("Sequential physics algorithm has finished:\n");
+    printf("CUDA physics algorithm has finished:\n");
     printf("    Init gen:     %f s.\n", (double)initialGenTime/1000000);
     printf("    Interactions: %f s.\n", (double)interactionsTime/1000000);
     printf("    World int.:   %f s.\n", (double)worldInteractionsTime/1000000);

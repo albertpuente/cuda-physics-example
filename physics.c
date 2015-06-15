@@ -26,7 +26,7 @@ Albert Puente Encinas
 #include <sys/time.h>
 
 // Algorithm parameters
-#define N 256*4
+#define N 256*16 // Si incrementa FALLA (+110 MB)!
 #define ITERATIONS 2000
 #define G 9.81
 #define BOUNCE_DECAY 0.5
@@ -36,7 +36,7 @@ Albert Puente Encinas
 #define MAX_TRIES 1e4
 #define SEED 27
 
-#define DUMP_RATIO 4
+#define DUMP_RATIO 2
 
 // c++ style
 typedef int bool;
@@ -100,13 +100,9 @@ bool collides(Point* p, PointSet* PS, int from, int to) {
 
 Vector diffVector(Point* a, Point* b) {
     Vector v;
-    float e = 1e-50;
     v.x = a->x - b->x;
-    if (abs(v.x) < e) v.x = 0;
     v.y = a->y - b->y;
-    if (abs(v.y) < e) v.y = 0;
     v.z = a->z - b->z;
-    if (abs(v.z) < e) v.z = 0;
     return v;
 }
 
