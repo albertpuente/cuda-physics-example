@@ -1,6 +1,3 @@
 # TGA-CUDA-physics
 
-Authors:
-Jan Mas Rovira
-Andres Mingorance Lopez
-Albert Puente Encinas
+Authors: Jan Mas Rovira, Andres Mingorance Lopez and Albert Puente Encinas
